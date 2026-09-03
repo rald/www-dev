@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gamepad Testing Utility</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #121212; color: #e0e0e0; padding: 2rem; max-width: 800px; margin: auto; }
+        .card { background: #1e1e1e; padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; }
+        .item { background: #2c2c2c; padding: 0.75rem; border-radius: 4px; text-align: center; }
+        .active { background: #3b82f6; color: white; }
+        progress { width: 100%; accent-color: #3b82f6; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>Gamepad Status</h2>
+        <p id="status">Connect a controller and press any button.</p>
+    </div>
+
+    <div class="card">
+        <h3>Buttons</h3>
+        <div id="buttons-grid" class="grid"></div>
+    </div>
+
+    <div class="card">
+        <h3>Axes (Sticks)</h3>
+        <div id="axes-grid" class="grid"></div>
+    </div>
+
+    <script>
+        let gamepadIndex = null;
+
+        window.addEventListener("gamepadconnected", (e) => {
+            gamepadIndex = e.gamepad.index;
+            document.getElementById("status").textContent = `Connected: ${e.gamepad.id}`;
+            requestAnimationFrame(updateLoop);
+        });
+
+        window.addEventListener("gamepaddisconnected", () => {
+            gamepadIndex = null;
+            document.getElementById("status").textContent = "Controller disconnected.";
+        });
+
+        function updateLoop() {
+            if (gamepadIndex !== null) {
+                const gp = navigator.getGamepads()[gamepadIndex];
+                if (gp) {
+                    renderButtons(gp.buttons);
+                    renderAxes(gp.axes);
+                }
+            }
+            requestAnimationFrame(updateLoop);
+        }
+
+        function renderButtons(buttons) {
+            const grid = document.getElementById("buttons-grid");
+            grid.innerHTML = "";
+            buttons.forEach((btn, i) => {
+                const div = document.createElement("div");
+                div.className = `item ${btn.pressed ? "active" : ""}`;
+                div.innerHTML = `B${i}<br><small>${btn.value.toFixed(2)}</small>`;
+                grid.appendChild(div);
+            });
+        }
+
+        function renderAxes(axes) {
+            const grid = document.getElementById("axes-grid");
+            grid.innerHTML = "";
+            axes.forEach((axis, i) => {
+                const div = document.createElement("div");
+                div.className = "item";
+                div.innerHTML = `Axis ${i}<br><progress min="-1" max="1" value="${axis}"></progress><br><small>${axis.toFixed(2)}</small>`;
+                grid.appendChild(div);
+            });
+        }
+    </script>
+</body>
+</html>

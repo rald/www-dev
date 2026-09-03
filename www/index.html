@@ -1,95 +1,80 @@
 <!DOCTYPE html>
 <html>
 
-    <head>
-
-      <meta name="viewport" 
-      content="width=device-width, 
-      initial-scale=1.0">
-      
-      <title>POCS - The Playground</title>
-
-      <link rel="icon" type="image/ico" 
-      href="favicon.ico" />
-
-      <link rel="stylesheet" href="style.css">      
-      </style>
-      
+	<head>
+		<meta name="viewport" content="width=device-width,initial-scale=1.0">
+		<title>POCS - The Playground</title>
+		<link rel="icon" type="image/ico" href="favicon.ico" />
+		<link rel="stylesheet" type="text/css" href="style.css">
     </head>
 
     <body>
 
+	  	<div id="container">
 
-  	<div id="container">
+  			<header>
 
-  	<header> 
-  	  
-  	  <img src="logo.png" height="128px">
-  	  
-  	  <h1>Pantasya Online Computer 
-  		School</h1> <h3>Welcome to the 
-  		Playground</h4> <h3>Where Study, Work and 
-  		Play are One</h4>
-  	</header>
+				<img src="logo.png" height="128px">
 
-    <main>
-  	
-      <section class="post">
+				<h1>Pantasya Online Computer School</h1>
+				<h3>Welcome to the Playground</h4>
+				<h3>Where Study, Work and	Play are One</h4>
 
-  			<center>
+  			</header>
 
-  				<h1>Information</h1>
-  				
-  				<a href="schedule.html" 
-  				target="_blank">Class 
-  				Schedule</a><br>
+		    <main>
+      			<section class="post">
+	  				<center>
 
-  				<a href="attendance.html" 
-  				target="_blank">Attendance 
-  				Record</a><br>
-  			
-  				<a href="subjects.html" 
-  				target="_blank">Subjects 
-  				Available</a><br>
-  									
-  				<a href="info.html" 
-  				target="_blank">Student 
-  				Information</a><br><br>
+		  				<h1>Information</h1>
 
-        </center>
+							<a href="schedule.html" target="_blank">Student Schedule</a><br>
+							<a href="attendance/attendance.html" target="_blank">Student Attendance</a><br>
+							<a href="subjects.html" target="_blank">Subjects Available</a><br>
+							<a href="students.html" target="_blank">Student Information</a><br><br>
 
-        <hr>
-  							
-  			<center>
+						<hr>
 
+						<h1>Contact</h1>
 
-					<h1>Contact</h1>
+     					<p>Any questions and suggestions please contact</p>
 
-     			<p>Any questions and suggestions 
-     			please contact</p>
+    		  			<a href="https://facebook.com/friaelagua" target="_blank">https://facebook.com/friaelagua</a><br><br>
 
-    		  <a 
-    		  href="https://facebook.com/friaelagua" 
-    		  target="_blank">https://facebook.com/friaelagua</a><br><br>
+						<hr>
 
-					<a href="/cgi-bin/guestbook/guestbook.cgi" target="_blank">Sign our Guestbook</a>
+						<h1>Donation</h1>
 
+						<a href="gcash.jpg">Donate here using GCash</a>
 
-  			</center>
-    
-      </section>
+					</center>
 
-    </main>
-  	
-	      
-    <footer> 
-      <h4>Since 2022-09-01 by FriaElAgua</h4>
-    </footer>
+				</section>
 
+			</main>
+
+			<footer>
+				<h4>
+				    Since 2022-09-01 by FriaElAgua [hits: <span id="hit-count">Loading...</span>]
+				</h4>
+			</footer>
 
 		</div>
 
-  </body>
+        <script>
+            // Fetch the count from your CGI script and display it
+            fetch('hits.py')
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('hit-count').innerText = data.trim();
+                })
+                .catch(error => {
+                    document.getElementById('hit-count').innerText = "Unavailable";
+                    console.error('Error fetching counter:', error);
+                });
+        </script>
+
+	</body>
 
 </html>
 

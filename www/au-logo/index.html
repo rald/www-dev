@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pantasya AU-LOGO</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+        .pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        canvas {
+            border: 1px solid #ccc;
+            background-color: #fff;
+            width: 100%;
+            height: 400px;
+            border-radius: 4px;
+        }
+        textarea {
+            width: 100%;
+            height: 250px;
+            font-family: monospace;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            background-color: #28a745;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        button.stop {
+            background-color: #dc3545;
+        }
+        button.stop:hover {
+            background-color: #c82333;
+        }
+        button.secondary {
+            background-color: #6c757d;
+        }
+        button.secondary:hover {
+            background-color: #5a6268;
+        }
+        .help-box {
+            font-family: monospace;
+            white-space: pre-wrap;
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .error-log {
+            color: #dc3545;
+            font-family: monospace;
+            font-weight: bold;
+            font-size: 13px;
+            min-height: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Pantasya AU-LOGO</h1>
+    
+    <div class="container">
+        <div class="pane">
+            <h3>Code Editor</h3>
+            <textarea id="codeArea" placeholder="Enter LOGO code here...">
+
+TO STAR :SIZE :COLOR
+  PENCOLOR :COLOR
+  REPEAT 5 [
+    FD :SIZE
+    RT 144
+  ]
+END
+
+STAR 100 "blue"
+
+            </textarea>
+            
+            <div class="controls">
+                <button id="runBtn" onclick="toggleRun()">RUN</button>
+                <button class="secondary" onclick="window.LogoInterpreter.reset()">RESET</button>
+            </div>
+
+            <div id="errorLog" class="error-log"></div>
+
+            <h3>Quick Reference</h3>
+            <div id="helpDiv" class="help-box"></div>
+        </div>
+
+        <div class="pane">
+            <h3>Graphics Output</h3>
+            <canvas id="canvas" width="500" height="400"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const HELP_TEXT = `LOGO Commands Guide:
+• FORWARD / FD <val> - Moves turtle forward
+• BACK / BK <val> - Moves turtle backward
+• RIGHT / RT <deg> - Turns turtle right
+• LEFT / LT <deg> - Turns turtle left
+• REPEAT <count> [ ... ] - Loops a block
+• IF <condition> [ ... ] - Conditional block
+• LET :var <val> - Declares/initializes a variable
+• SET :var <val> - Updates an existing variable
+• PRINT <val> - Prints value to browser console
+• [ ... ] - Evaluates and returns the last expression/OUTPUT
+• PENUP / PENDOWN - Controls pen tracing
+• SHOW / SHOWTURTLE / ST - Displays the turtle
+• HIDE / HIDETURTLE / HT - Hides the turtle
+• PENCOLOR <color> - Sets pen color (e.g., "blue" or "#ff0000")
+• RANDOM <max> - Returns random number
+• TO <name> [args] ... END - Defines a function
+• OUTPUT <val> - Returns a value from a function
+• STOP - Exits current function/execution
+• CTRL+L - Go to Line:Column (Shows current position & max lines)`;
+
+        document.getElementById('helpDiv').textContent = HELP_TEXT;
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const bufferCanvas = document.createElement('canvas');
+        bufferCanvas.width = canvas.width;
+        bufferCanvas.height = canvas.height;
+        const bufferCtx = bufferCanvas.getContext('2d');
+
+        const codeArea = document.getElementById('codeArea');
+        const runBtn = document.getElementById('runBtn');
+        const errorLog = document.getElementById('errorLog');
+
+        // Helper to compute line and column from character index
+        function getLineAndColumn(val, index) {
+            const lines = val.substring(0, index).split('\n');
+            const line = lines.length;
+            const col = lines[lines.length - 1].length + 1;
+            return { line, col };
+        }
+
+        // Helper to get total line count
+        function getTotalLines(val) {
+            return val.split('\n').length;
+        }
+
+        // Helper to find character offset for a specific line and column
+        function getIndexFromLineAndColumn(val, targetLine, targetCol) {
+            const lines = val.split('\n');
+            const clampedLine = Math.max(1, Math.min(targetLine, lines.length));
+            let index = 0;
+            for (let i = 0; i < clampedLine - 1; i++) {
+                index += lines[i].length + 1; // +1 for the newline character
+            }
+            const targetLineStr = lines[clampedLine - 1] || '';
+            const clampedCol = Math.max(1, Math.min(targetCol, targetLineStr.length + 1));
+            index += (clampedCol - 1);
+            return index;
+        }
+
+        // Keyboard Event Handlers for Tab Indentation and CTRL+L
+        codeArea.addEventListener('keydown', function(e) {
+            // CTRL+L: Go to Line:Column prompt
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') {
+                e.preventDefault();
+                const currentPos = this.selectionStart;
+                const totalLines = getTotalLines(this.value);
+                const current = getLineAndColumn(this.value, currentPos);
+
+                const input = prompt(`Current Line: ${current.line}, Col: ${current.col}\nMax Lines: ${totalLines}\nEnter destination (Line or Line:Col):`, `${current.line}:${current.col}`);
+                
+                if (input !== null) {
+                    let targetLine = current.line;
+                    let targetCol = current.col;
+
+                    if (input.includes(':')) {
+                        const parts = input.split(':');
+                        targetLine = parseInt(parts[0], 10) || current.line;
+                        targetCol = parseInt(parts[1], 10) || 1;
+                    } else if (input.trim() !== '') {
+                        targetLine = parseInt(input, 10) || current.line;
+                        targetCol = 1;
+                    }
+
+                    const newIndex = getIndexFromLineAndColumn(this.value, targetLine, targetCol);
+                    this.focus();
+                    this.setSelectionRange(newIndex, newIndex);
+                }
+                return;
+            }
+
+            // Tab and Shift-Tab Indentation Handling
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                const val = this.value;
+                const indent = '  ';
+
+                const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+                
+                let lineEnd = end;
+                if (end > start && val.charAt(end - 1) === '\n') {
+                    lineEnd = end - 1;
+                }
+                const actualLineEnd = val.indexOf('\n', lineEnd);
+                const finalEnd = actualLineEnd === -1 ? val.length : actualLineEnd;
+
+                const selectedText = val.substring(lineStart, finalEnd);
+
+                if (selectedText.includes('\n')) {
+                    const lines = selectedText.split('\n');
+                    let modifiedLines;
+                    if (e.shiftKey) {
+                        modifiedLines = lines.map(line => {
+                            if (line.startsWith('  ')) return line.substring(2);
+                            if (line.startsWith(' ')) return line.substring(1);
+                            return line;
+                        });
+                    } else {
+                        modifiedLines = lines.map(line => indent + line);
+                    }
+                    
+                    const replacement = modifiedLines.join('\n');
+                    this.value = val.substring(0, lineStart) + replacement + val.substring(finalEnd);
+                    this.setSelectionRange(lineStart, lineStart + replacement.length);
+                } else {
+                    if (e.shiftKey) {
+                        let currentLine = val.substring(lineStart, finalEnd);
+                        if (currentLine.startsWith('  ')) {
+                            const replacement = currentLine.substring(2);
+                            this.value = val.substring(0, lineStart) + replacement + val.substring(finalEnd);
+                            const newStart = Math.max(lineStart, start - 2);
+                            const newEnd = Math.max(lineStart, end - 2);
+                            this.setSelectionRange(newStart, newEnd);
+                        } else if (currentLine.startsWith(' ')) {
+                            const replacement = currentLine.substring(1);
+                            this.value = val.substring(0, lineStart) + replacement + val.substring(finalEnd);
+                            const newStart = Math.max(lineStart, start - 1);
+                            const newEnd = Math.max(lineStart, end - 1);
+                            this.setSelectionRange(newStart, newEnd);
+                        }
+                    } else {
+                        if (start === end) {
+                            this.value = val.substring(0, start) + indent + val.substring(end);
+                            this.setSelectionRange(start + indent.length, start + indent.length);
+                        } else {
+                            const replacement = indent + selectedText;
+                            this.value = val.substring(0, lineStart) + replacement + val.substring(finalEnd);
+                            this.setSelectionRange(start + indent.length, end + indent.length);
+                        }
+                    }
+                }
+            }
+        });
+
+        let turtle = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            angle: 0,
+            penDown: true,
+            visible: true,
+            penColor: '#000000'
+        };
+
+        let isRunning = false;
+        let animationCancelled = false;
+
+        function resetCanvas() {
+            bufferCtx.fillStyle = '#ffffff';
+            bufferCtx.fillRect(0, 0, bufferCanvas.width, bufferCanvas.height);
+            turtle.x = canvas.width / 2;
+            turtle.y = canvas.height / 2;
+            turtle.angle = 0;
+            turtle.penDown = true;
+            turtle.visible = true;
+            turtle.penColor = '#000000';
+            errorLog.textContent = '';
+            redraw();
+        }
+
+        function redraw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(bufferCanvas, 0, 0);
+            if (turtle.visible) {
+                drawTurtle();
+            }
+        }
+
+        function drawTurtle() {
+            ctx.save();
+            ctx.translate(turtle.x, turtle.y);
+            ctx.rotate((turtle.angle - 90) * Math.PI / 180);
+            
+            ctx.beginPath();
+            ctx.moveTo(10, 0);
+            ctx.lineTo(-10, -7);
+            ctx.lineTo(-10, 7);
+            ctx.closePath();
+            ctx.fillStyle = '#007bff';
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function tokenize(code) {
+            let tokens = [];
+            let lines = code.split(/\r?\n/);
+            for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+                let line = lines[lineNum];
+                let regex = /"[^"]*"|'[^']*'|\[|\]|[:\w\+\-\*\/\<\>\=\#]+|[^\s]/g;
+                let match;
+                while ((match = regex.exec(line)) !== null) {
+                    let text = match[0];
+                    if (!/\s/.test(text)) {
+                        tokens.push({
+                            value: text,
+                            line: lineNum + 1,
+                            col: match.index + 1
+                        });
+                    }
+                }
+            }
+            return tokens;
+        }
+
+        function parseProgram(tokens) {
+            let functions = {};
+            let mainTokens = [];
+            let i = 0;
+
+            while (i < tokens.length) {
+                let tokenObj = tokens[i];
+                let token = tokenObj.value.toUpperCase();
+                if (token === 'TO') {
+                    if (!tokens[i+1]) {
+                        throw new Error(`[Line ${tokenObj.line}:${tokenObj.col}] Missing function name after 'TO'`);
+                    }
+                    let funcNameToken = tokens[i+1];
+                    let funcName = funcNameToken.value.toUpperCase();
+                    i += 2;
+                    let args = [];
+                    while (i < tokens.length && tokens[i].value.startsWith(':')) {
+                        args.push(tokens[i].value.substring(1).toUpperCase());
+                        i++;
+                    }
+                    let bodyTokens = [];
+                    let depth = 1;
+                    while (i < tokens.length && depth > 0) {
+                        let curVal = tokens[i].value.toUpperCase();
+                        if (curVal === 'TO') depth++;
+                        if (curVal === 'END') {
+                            depth--;
+                            if (depth === 0) {
+                                i++;
+                                break;
+                            }
+                        }
+                        bodyTokens.push(tokens[i]);
+                        i++;
+                    }
+                    if (depth > 0) {
+                        throw new Error(`[Line ${tokenObj.line}:${tokenObj.col}] Missing 'END' for function '${funcName}'`);
+                    }
+                    functions[funcName] = { args, bodyTokens };
+                } else {
+                    mainTokens.push(tokens[i]);
+                    i++;
+                }
+            }
+            return { functions, mainTokens };
+        }
+
+        function parseExpressionTree(tokens, startIndex, scope, functions) {
+            if (startIndex >= tokens.length) {
+                throw new Error(`[Line 1:1] Unexpected end of expression`);
+            }
+
+            let tokenObj = tokens[startIndex];
+            let val = tokenObj.value;
+            let upper = val.toUpperCase();
+
+            if (val.startsWith('"') || val.startsWith("'")) {
+                let strVal = val.substring(1, val.length - 1);
+                return parseInfixOperations(tokens, startIndex + 1, strVal, scope, functions);
+            }
+
+            if (val === '(') {
+                let inner = parseExpressionTree(tokens, startIndex + 1, scope, functions);
+                if (tokens[inner.nextIndex].value !== ')') {
+                    throw new Error(`[Line ${tokenObj.line}:${tokenObj.col}] Missing closing parenthesis ')'`);
+                }
+                return { value: inner.value, nextIndex: inner.nextIndex + 1 };
+            }
+
+            if (val === '[') {
+                let blockTokens = [];
+                let depth = 1;
+                let bIdx = startIndex + 1;
+                while (bIdx < tokens.length && depth > 0) {
+                    let curVal = tokens[bIdx].value;
+                    if (curVal === '[') depth++;
+                    if (curVal === ']') {
+                        depth--;
+                        if (depth === 0) break;
+                    }
+                    blockTokens.push(tokens[bIdx]);
+                    bIdx++;
+                }
+                if (depth > 0) throw new Error(`[Line ${tokenObj.line}:${tokenObj.col}] Unmatched '['`);
+
+                let res = runInterpreterSync(blockTokens, functions, scope);
+                let blockVal = 0;
+                if (res && res.type === 'OUTPUT') {
+                    blockVal = res.value;
+                } else if (res !== undefined && res !== 'STOP') {
+                    blockVal = (typeof res === 'object' && res.value !== undefined) ? res.value : res;
+                }
+                return parseInfixOperations(tokens, bIdx + 1, blockVal, scope, functions);
+            }
+
+            if (functions[upper] || upper === 'RANDOM') {
+                let argValues = [];
+                let currIdx = startIndex + 1;
+                let expectedArgsCount = (upper === 'RANDOM') ? 1 : functions[upper].args.length;
+
+                for (let a = 0; a < expectedArgsCount; a++) {
+                    if (currIdx >= tokens.length) {
+                        throw new Error(`[Line ${tokenObj.line}:${tokenObj.col}] Insufficient arguments for '${upper}'`);
+                    }
+                    let argParsed = parseExpressionTree(tokens, currIdx, scope, functions);
+                    argValues.push(argParsed.value);
+                    currIdx = argParsed.nextIndex;
+                }
+
+                let result;
+                if (upper === 'RANDOM') {
+                    result = Math.floor(Math.random() * argValues[0]);
+                } else {
+                    let func = functions[upper];
+                    let localScope = {};
+                    for (let idx = 0; idx < func.args.length; idx++) {
+                        localScope[func.args[idx]] = argValues[idx];
+                    }
+                    let res = runInterpreterSync(func.bodyTokens, functions, localScope);
+                    if (res && res.type === 'OUTPUT') {
+                        result = res.value;
+                    } else if (res !== undefined && res !== 'STOP') {
+                        result = (typeof res === 'object' && res.value !== undefined) ? res.value : res;
+                    } else {
+                        result = 0;
+                    }
+                }
+
+                return parseInfixOperations(tokens, currIdx, result, scope, functions);
+            }
+
+            if (val.startsWith(':')) {
+                let varName = val.substring(1).toUpperCase();
+                let literalVal = (scope[varName] !== undefined) ? scope[varName] : 0;
+                return parseInfixOperations(tokens, startIndex + 1, literalVal, scope, functions);
+            }
+
+            if (!isNaN(val)) {
+                let numVal = parseFloat(val);
+                return parseInfixOperations(tokens, startIndex + 1, numVal, scope, functions);
+            }
+
+            throw new Error(`[Line ${tokenObj.line}:${tokenObj.col}] Invalid expression syntax '${val}'`);
+        }
+
+        function parseInfixOperations(tokens, startIndex, leftVal, scope, functions) {
+            let idx = startIndex;
+            while (idx < tokens.length) {
+                let opToken = tokens[idx];
+                let op = opToken.value;
+
+                if (!['+', '-', '*', '/', '>', '<', '='].includes(op)) {
+                    break;
+                }
+
+                let actualOp = op;
+                let nextIdx = idx + 1;
+                if ((op === '>' || op === '<' || op === '=') && tokens[nextIdx] && tokens[nextIdx].value === '=') {
+                    actualOp += '=';
+                    nextIdx++;
+                }
+
+                if (!['+', '-', '*', '/', '>', '<', '=', '==', '>=', '<='].includes(actualOp)) {
+                    break;
+                }
+
+                let rightParsed = parseExpressionTree(tokens, nextIdx, scope, functions);
+                let rightVal = rightParsed.value;
+                idx = rightParsed.nextIndex;
+
+                switch (actualOp) {
+                    case '+': leftVal = leftVal + rightVal; break;
+                    case '-': leftVal = leftVal - rightVal; break;
+                    case '*': leftVal = leftVal * rightVal; break;
+                    case '/': 
+                        if (rightVal === 0) throw new Error(`[Line ${opToken.line}:${opToken.col}] Division by zero`);
+                        leftVal = leftVal / rightVal; 
+                        break;
+                    case '>': leftVal = (leftVal > rightVal) ? 1 : 0; break;
+                    case '<': leftVal = (leftVal < rightVal) ? 1 : 0; break;
+                    case '=':
+                    case '==': leftVal = (leftVal === rightVal) ? 1 : 0; break;
+                    case '>=': leftVal = (leftVal >= rightVal) ? 1 : 0; break;
+                    case '<=': leftVal = (leftVal <= rightVal) ? 1 : 0; break;
+                }
+            }
+            return { value: leftVal, nextIndex: idx };
+        }
+
+        function runInterpreterSync(tokens, functions, scope) {
+            let i = 0;
+            let lastValue = 0;
+            while (i < tokens.length) {
+                let tokenObj = tokens[i];
+                let cmd = tokenObj.value.toUpperCase();
+
+                if (cmd === 'FORWARD' || cmd === 'FD' || cmd === 'BACK' || cmd === 'BK' || cmd === 'RIGHT' || cmd === 'RT' || cmd === 'LEFT' || cmd === 'LT') {
+                    let parsed = parseExpressionTree(tokens, i + 1, scope, functions);
+                    let arg = parsed.value;
+                    if (cmd === 'FORWARD' || cmd === 'FD') {
+                        let rad = (turtle.angle - 90) * Math.PI / 180;
+                        turtle.x += arg * Math.cos(rad);
+                        turtle.y += arg * Math.sin(rad);
+                    } else if (cmd === 'BACK' || cmd === 'BK') {
+                        let rad = (turtle.angle - 90 + 180) * Math.PI / 180;
+                        turtle.x += arg * Math.cos(rad);
+                        turtle.y += arg * Math.sin(rad);
+                    } else if (cmd === 'RIGHT' || cmd === 'RT') {
+                        turtle.angle = (turtle.angle + arg) % 360;
+                    } else if (cmd === 'LEFT' || cmd === 'LT') {
+                        turtle.angle = (turtle.angle - arg + 360) % 360;
+                    }
+                    i = parsed.nextIndex;
+                    lastValue = arg;
+                }
+                else if (cmd === 'PENUP') { turtle.penDown = false; i += 1; }
+                else if (cmd === 'PENDOWN') { turtle.penDown = true; i += 1; }
+                else if (cmd === 'SHOW' || cmd === 'SHOWTURTLE' || cmd === 'ST') { turtle.visible = true; i += 1; }
+                else if (cmd === 'HIDE' || cmd === 'HIDETURTLE' || cmd === 'HT') { turtle.visible = false; i += 1; }
+                else if (cmd === 'PENCOLOR') {
+                    let parsed = parseExpressionTree(tokens, i + 1, scope, functions);
+                    turtle.penColor = parsed.value;
+                    i = parsed.nextIndex;
+                    lastValue = parsed.value;
+                }
+                else if (cmd === 'PRINT') {
+                    let parsed = parseExpressionTree(tokens, i + 1, scope, functions);
+                    console.log(parsed.value);
+                    i = parsed.nextIndex;
+                    lastValue = parsed.value;
+                }
+                else if (cmd === 'LET' || cmd === 'SET') {
+                    let varToken = tokens[i + 1];
+                    if (!varToken || !varToken.value.startsWith(':')) {
+                        throw new Error(`[Line ${tokenObj.line}:${tokenObj.col}] Expected variable name starting with ':' after ${cmd}`);
+                    }
+                    let varName = varToken.value.substring(1).toUpperCase();
+                    let parsed = parseExpressionTree(tokens, i + 2, scope, functions);
+                    scope[varName] = parsed.value;
+                    i = parsed.nextIndex;
+                    lastValue = parsed.value;
+                }
+                else if (cmd === 'OUTPUT') {
+                    let parsed = parseExpressionTree(tokens, i + 1, scope, functions);
+                    return { type: 'OUTPUT', value: parsed.value };
+                }
+                else if (cmd === 'STOP') {
+                    return 'STOP';
+                }
+                else if (functions[cmd]) {
+                    let func = functions[cmd];
+                    let localScope = {};
+                    let argIdx = i + 1;
+                    for (let argName of func.args) {
+                        let parsed = parseExpressionTree(tokens, argIdx, scope, functions);
+                        localScope[argName] = parsed.value;
+                        argIdx = parsed.nextIndex;
+                    }
+                    let res = runInterpreterSync(func.bodyTokens, functions, localScope);
+                    if (res === 'STOP') return 'STOP';
+                    if (res && res.type === 'OUTPUT') return res;
+                    i = argIdx;
+                    lastValue = res !== undefined ? res : 0;
+                }
+                else {
+                    throw new Error(`[Line ${tokenObj.line}:${tokenObj.col}] Unknown command or variable '${tokenObj.value}'`);
+                }
+            }
+            return lastValue;
+        }
+
+        async function animateMove(targetX, targetY, duration) {
+            return new Promise((resolve) => {
+                let startX = turtle.x;
+                let startY = turtle.y;
+                let startTime = null;
+
+                function frame(timestamp) {
+                    if (animationCancelled) { resolve(); return; }
+                    if (!startTime) startTime = timestamp;
+                    let progress = Math.min((timestamp - startTime) / duration, 1);
+
+                    let currentX = startX + (targetX - startX) * progress;
+                    let currentY = startY + (targetY - startY) * progress;
+
+                    if (turtle.penDown) {
+                        bufferCtx.beginPath();
+                        bufferCtx.moveTo(turtle.x, turtle.y);
+                        bufferCtx.lineTo(currentX, currentY);
+                        bufferCtx.strokeStyle = turtle.penColor;
+                        bufferCtx.lineWidth = 2;
+                        bufferCtx.stroke();
+                    }
+
+                    turtle.x = currentX;
+                    turtle.y = currentY;
+                    redraw();
+
+                    if (progress < 1) requestAnimationFrame(frame);
+                    else resolve();
+                }
+                requestAnimationFrame(frame);
+            });
+        }
+
+        async function animateRotate(targetAngle, duration) {
+            return new Promise((resolve) => {
+                let startAngle = turtle.angle;
+                let diff = (targetAngle - startAngle) % 360;
+                let shortestDiff = ((diff + 540) % 360) - 180;
+                let startTime = null;
+
+                function frame(timestamp) {
+                    if (animationCancelled) { resolve(); return; }
+                    if (!startTime) startTime = timestamp;
+                    let progress = Math.min((timestamp - startTime) / duration, 1);
+
+                    turtle.angle = (startAngle + shortestDiff * progress + 360) % 360;
+                    redraw();
+
+                    if (progress < 1) requestAnimationFrame(frame);
+                    else {
+                        turtle.angle = (targetAngle + 360) % 360;
+                        redraw();
+                        resolve();
+                    }
+                }
+                requestAnimationFrame(frame);
+            });
+        }
+
+        async function runInterpreter(tokens, functions, scope = {}) {
+            let i = 0;
+            let lastValue = 0;
+            while (i < tokens.length && isRunning && !animationCancelled) {
+                let tokenObj = tokens[i];
+                let cmd = tokenObj.value.toUpperCase();
+
+                if (cmd === 'FORWARD' || cmd === 'FD') {
+                    let parsed = parseExpressionTree(tokens, i + 1, scope, functions);
+                    let arg = parsed.value;
+                    let rad = (turtle.angle - 90) * Math.PI / 180;
+                    await animateMove(turtle.x + arg * Math.cos(rad), turtle.y + arg * Math.sin(rad), Math.min(Math.max(Math.abs(arg) * 3, 50), 400));
+                    i = parsed.nextIndex;
+                    lastValue = arg;
+                } 
+                else if (cmd === 'BACK' || cmd === 'BK') {
+                    let parsed = parseExpressionTree(tokens, i + 1, scope, functions);
+                    let arg = parsed.value;
+                    await animateRotate((turtle.angle + 180) % 360, 200);
+                    let rad = (turtle.angle - 90) * Math.PI / 180;
+                    await animateMove(turtle.x + arg * Math.cos(rad), turtle.y + arg * Math.sin(rad), Math.min(Math.max(Math.abs(arg) * 3, 50), 400));
+                    i = parsed.nextIndex;
+                    lastValue = arg;
+                }
+                else if (cmd === 'RIGHT' || cmd === 'RT') {
+                    let parsed = parseExpressionTree(tokens, i + 1, scope, functions);
+                    let arg = parsed.value;
+                    await animateRotate((turtle.angle + arg) % 360, Math.min(Math.max(Math.abs(arg) * 2, 50), 300));
+                    i = parsed.nextIndex;
+                    lastValue = arg;
+                }
+                else if (cmd === 'LEFT' || cmd === 'LT') {
+                    let parsed = parseExpressionTree(tokens, i + 1, scope, functions);
+                    let arg = parsed.value;
+                    await animateRotate((turtle.angle - arg + 360) % 360, Math.min(Math.max(Math.abs(arg) * 2, 50), 300));
+                    i = parsed.nextIndex;
+                    lastValue = arg;
+                }
+                else if (cmd === 'PENUP') { turtle.penDown = false; i += 1; }
+                else if (cmd === 'PENDOWN') { turtle.penDown = true; i += 1; }
+                else if (cmd === 'SHOW' || cmd === 'SHOWTURTLE' || cmd === 'ST') { turtle.visible = true; redraw(); i += 1; }
+                else if (cmd === 'HIDE' || cmd === 'HIDETURTLE' || cmd === 'HT') { turtle.visible = false; redraw(); i += 1; }
+                else if (cmd === 'PRINT') {
+                    let parsed = parseExpressionTree(tokens, i + 1, scope, functions);
+                    console.log(parsed.value);
+                    i = parsed.nextIndex;
+                    lastValue = parsed.value;
+                }
+                else if (cmd === 'PENCOLOR') {
+                    let parsed = parseExpressionTree(tokens, i + 1, scope, functions);
+                    turtle.penColor = parsed.value;
+                    i = parsed.nextIndex;
+                    lastValue = parsed.value;
+                }
+                else if (cmd === 'LET' || cmd === 'SET') {
+                    let varToken = tokens[i + 1];
+                    if (!varToken || !varToken.value.startsWith(':')) {
+                        throw new Error(`[Line ${tokenObj.line}:${tokenObj.col}] Expected variable name starting with ':' after ${cmd}`);
+                    }
+                    let varName = varToken.value.substring(1).toUpperCase();
+                    let parsed = parseExpressionTree(tokens, i + 2, scope, functions);
+                    scope[varName] = parsed.value;
+                    i = parsed.nextIndex;
+                    lastValue = parsed.value;
+                }
+                else if (cmd === 'REPEAT') {
+                    let parsed = parseExpressionTree(tokens, i + 1, scope, functions);
+                    let count = parsed.value;
+                    let nextIdx = parsed.nextIndex;
+
+                    if (tokens[nextIdx] && tokens[nextIdx].value === '[') {
+                        let blockTokens = [];
+                        let depth = 1;
+                        let bIdx = nextIdx + 1;
+                        while (bIdx < tokens.length && depth > 0) {
+                            let curVal = tokens[bIdx].value;
+                            if (curVal === '[') depth++;
+                            if (curVal === ']') {
+                                depth--;
+                                if (depth === 0) break;
+                            }
+                            blockTokens.push(tokens[bIdx]);
+                            bIdx++;
+                        }
+                        if (depth > 0) throw new Error(`[Line ${tokenObj.line}:${tokenObj.col}] Unmatched '[' in REPEAT`);
+
+                        for (let r = 0; r < count && isRunning && !animationCancelled; r++) {
+                            let res = await runInterpreter(blockTokens, functions, scope);
+                            if (res === 'STOP') return 'STOP';
+                            if (res && res.type === 'OUTPUT') return res;
+                            if (res !== undefined) lastValue = (typeof res === 'object' && res.value !== undefined) ? res.value : res;
+                        }
+                        i = bIdx + 1;
+                    } else {
+                        throw new Error(`[Line ${tokenObj.line}:${tokenObj.col}] Expected '[' after REPEAT`);
+                    }
+                }
+                else if (cmd === 'IF') {
+                    let parsedCond = parseExpressionTree(tokens, i + 1, scope, functions);
+                    let conditionMet = parsedCond.value !== 0;
+                    let nextIdx = parsedCond.nextIndex;
+                    
+                    if (tokens[nextIdx] && tokens[nextIdx].value === '[') {
+                        let blockTokens = [];
+                        let depth = 1;
+                        let bIdx = nextIdx + 1;
+                        while (bIdx < tokens.length && depth > 0) {
+                            let curVal = tokens[bIdx].value;
+                            if (curVal === '[') depth++;
+                            if (curVal === ']') {
+                                depth--;
+                                if (depth === 0) break;
+                            }
+                            blockTokens.push(tokens[bIdx]);
+                            bIdx++;
+                        }
+                        if (depth > 0) throw new Error(`[Line ${tokenObj.line}:${tokenObj.col}] Unmatched '[' in IF`);
+                        
+                        if (conditionMet) {
+                            let res = await runInterpreter(blockTokens, functions, scope);
+                            if (res === 'STOP') return 'STOP';
+                            if (res && res.type === 'OUTPUT') return res;
+                            if (res !== undefined) lastValue = (typeof res === 'object' && res.value !== undefined) ? res.value : res;
+                        }
+                        i = bIdx + 1;
+                    } else {
+                        throw new Error(`[Line ${tokenObj.line}:${tokenObj.col}] Expected '[' after IF`);
+                    }
+                }
+                else if (cmd === 'OUTPUT') {
+                    let parsed = parseExpressionTree(tokens, i + 1, scope, functions);
+                    return { type: 'OUTPUT', value: parsed.value };
+                }
+                else if (cmd === 'STOP') { return 'STOP'; }
+                else if (functions[cmd]) {
+                    let func = functions[cmd];
+                    let localScope = {};
+                    let argIdx = i + 1;
+                    
+                    for (let argName of func.args) {
+                        if (argIdx >= tokens.length) {
+                            throw new Error(`[Line ${tokenObj.line}:${tokenObj.col}] Insufficient arguments for function '${cmd}'`);
+                        }
+                        let parsed = parseExpressionTree(tokens, argIdx, scope, functions);
+                        localScope[argName] = parsed.value;
+                        argIdx = parsed.nextIndex;
+                    }
+                    
+                    let res = await runInterpreter(func.bodyTokens, functions, localScope);
+                    if (res === 'STOP') return 'STOP';
+                    if (res && res.type === 'OUTPUT') return res;
+                    i = argIdx;
+                    lastValue = res !== undefined ? res : 0;
+                } 
+                else {
+                    throw new Error(`[Line ${tokenObj.line}:${tokenObj.col}] Unknown command or variable '${tokenObj.value}'`);
+                }
+            }
+            return lastValue;
+        }
+
+        window.LogoInterpreter = {
+            runCode: async function(codeString) {
+                if (isRunning) this.stop();
+                isRunning = true;
+                animationCancelled = false;
+                runBtn.textContent = 'STOP';
+                runBtn.className = 'stop';
+                codeArea.disabled = true;
+                resetCanvas();
+                try {
+                    const tokens = tokenize(codeString);
+                    const { functions, mainTokens } = parseProgram(tokens);
+                    await runInterpreter(mainTokens, functions);
+                } catch (err) {
+                    errorLog.textContent = err.message;
+                    console.error(`[LOGO Execution Aborted]: ${err.message}`);
+                } finally {
+                    stopExecution();
+                }
+            },
+            stop: function() {
+                animationCancelled = true;
+                stopExecution();
+            },
+            reset: function() { resetCanvas(); },
+            getTurtleState: function() { return { ...turtle }; }
+        };
+
+        async function toggleRun() {
+            if (!isRunning) await window.LogoInterpreter.runCode(codeArea.value);
+            else window.LogoInterpreter.stop();
+        }
+
+        function stopExecution() {
+            isRunning = false;
+            runBtn.textContent = 'RUN';
+            runBtn.className = '';
+            codeArea.disabled = false;
+            redraw();
+        }
+
+        resetCanvas();
+    </script>
+</body>
+</html>

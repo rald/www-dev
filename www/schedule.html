@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>POCS - Class Schedule</title>
+  <title>POCS - Student Schedule</title>
   <style>
     body {
       font-family: monospace;
@@ -12,7 +12,7 @@
 </head>
 <body>
 
-<table border="1" id="scheduleTable" width="1600">
+<table border="1" id="scheduleTable">
   <!-- Table will be generated here -->
 </table>
 
@@ -41,6 +41,8 @@ const schedule = [
 
 ];
 
+const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
 const palette = [
 "#1a1c2c",
 "#5d275d",
@@ -60,8 +62,6 @@ const palette = [
 "#333c57",
 "#000080",
 ];
-
-const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 function blackOrWhite(bgColor) {
   let color = (bgColor.charAt(0) === '#') ? bgColor.substring(1, 7) : bgColor;
