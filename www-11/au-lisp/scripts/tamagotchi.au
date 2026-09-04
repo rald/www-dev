@@ -1,0 +1,54 @@
+(load "scripts/sweetie-16.au")
+(load "scripts/sprites.au")
+
+(define frame 0)
+
+(define draw (lambda (sprite x y f) (begin
+  (let  (
+          (i 0)
+          (j 0)
+          (k 0)
+        )
+    (while (< j 8) (begin
+      (set! i 0)
+      (while (< i 8) (begin
+        (set! k (list-get (list-get sprite (+ j (* f 8))) i))
+        (if (= k 1) 
+          (pset (+ x i) (+ y j) (sweetie 12))
+          NIL
+        )        
+        (set! i (+ i 1))    
+      ))
+      (set! j (+ j 1))    
+    ))
+  )
+)))
+
+(define setup (lambda () (begin
+  (cls (sweetie 0))
+)))
+
+(define update (lambda (dt) (begin
+
+  (cls)
+    
+  (if (< (mod frame 100) 50)
+    (begin
+        (draw egg 0 0 0)
+        (draw chick 9 0 0)
+        (draw rooster 18 0 0)
+        (draw old-rooster 27 0 0)
+        (draw sick 36 0 0)
+    )
+    (begin
+        (draw egg 0 0 1)
+        (draw chick 9 0 1)
+        (draw rooster 18 0 1)
+        (draw old-rooster 27 0 1)
+        (draw sick 36 0 1)
+    )
+  )
+
+  (set! frame (+ frame 1))
+
+)))

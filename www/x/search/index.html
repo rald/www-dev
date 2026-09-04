@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pantasya Search Engine</title>
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+    <main class="container">
+        <header>
+            <h1 id="logo">PANTASYA<span class="sub">search</span></h1>
+            <p class="tagline">A magical search engine for the independent web.</p>
+        </header>
+
+        <section class="search-box">
+            <input type="text" id="query" placeholder="Search indie sites..." autofocus>
+            <button id="search-btn">Search</button>
+        </section>
+
+        <nav class="actions-bar">
+            <button id="toggle-submit-btn">+ Submit Site</button>
+        </nav>
+
+        <section id="submit-panel" class="hidden">
+            <h3>Add to the Pantasya Index</h3>
+            <input type="text" id="sub-url" placeholder="Website URL">
+            <input type="text" id="sub-title" placeholder="Short description / Title">
+            <button id="submit-btn">Index Site</button>
+            <p id="form-msg"></p>
+        </section>
+
+        <section>
+            <ul id="results"></ul>
+        </section>
+    </main>
+
+    <script src="static/script.js"></script>
+</body>
+</html>
